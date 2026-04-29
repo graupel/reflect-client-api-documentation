@@ -1,42 +1,73 @@
+---
+title: Reflect Client Data API
+description: API reference for accessing athlete biometric data and 3D body scan measurements.
+---
+
 # Reflect Client Data API Reference
 
-Access athlete biometric data and 3D body scan measurements programmatically with our secure REST API.
+Access athlete biometric data and 3D body scan measurements programmatically through our secure REST API.
+
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [Authentication](#authentication)
+- [Endpoints](#endpoints)
+  - [List Athletes](#list-athletes)
+  - [Get Athlete](#get-athlete)
+  - [List Scans](#list-scans)
+  - [Get Scan](#get-scan)
+  - [Get Measurements](#get-measurements)
+  - [Get 3D Model File](#get-3d-model-file)
+  - [Export Data](#export-data)
+- [Data Models](#data-models)
+- [Error Handling](#error-handling)
+- [Rate Limits](#rate-limits)
+- [Code Examples](#code-examples)
+- [Security Best Practices](#security-best-practices)
+- [Support](#support)
 
 ---
 
 ## Getting Started
 
-The Reflect Client Data API enables sports organizations to integrate athlete scan data directly into their existing systems, analytics platforms, and custom applications.
+The Reflect Client Data API lets your organization pull athlete scan data directly into your own systems — analytics platforms, dashboards, custom applications, or anything else you build.
 
 ### Quick Start
 
-1. **Get API Credentials** - Automatically provisioned when you purchase a license
-2. **Authenticate** - Obtain an access token using OAuth 2.0
-3. **Make Requests** - Access your athlete and scan data
+1. **Get your credentials** — A `client_id` and `client_secret` are provisioned when you purchase a Reflect license.
+2. **Authenticate** — Exchange your credentials for a short-lived access token via OAuth 2.0.
+3. **Call the API** — Use the token to read athlete profiles, scan results, measurements, and 3D model files.
 
-### Base URLs
+### Base URL
 
-- **Production**: `https://prod-wl.fitmatch.io/reflect/client/v1`
-
-### Authentication
-
-All API requests require OAuth 2.0 authentication. Include your access token in the Authorization header:
-
-```bash
-Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
+https://prod-wl.fitmatch.io/reflect/client/v1
+```
+
+All endpoint paths in this document are relative to this base URL.
+
+### Authentication at a Glance
+
+Every request must include a valid access token:
+
+```
+Authorization: Bearer <access_token>
+```
+
+See [Authentication](#authentication) for the full token flow.
 
 ---
 
 ## Authentication
 
-### Get Access Token
+### Obtain an Access Token
 
-Obtain an access token using your API credentials:
+**`POST https://prod-wl.fitmatch.io/reflect-auth/client-credentials`**
 
-**Endpoint:** `POST https://prod-wl.fitmatch.io/reflect-auth/client-credentials`
+Exchange your API credentials for a Bearer token.
 
-**Request:**
+**Request body**
+
 ```json
 {
   "client_id": "your_client_id",
@@ -45,37 +76,38 @@ Obtain an access token using your API credentials:
 }
 ```
 
-**Response:**
+**Response**
+
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
   "token_type": "Bearer",
   "expires_in": 3600
 }
 ```
 
-Tokens are valid for 1 hour and can be reused for multiple requests.
+Tokens are valid for **1 hour**. Cache and reuse them for the full lifetime — there is no need to request a new token for every call. When a token expires, request a new one with the same credentials.
 
 ---
 
-## Core Endpoints
+## Endpoints
 
 ### List Athletes
 
-Retrieve a paginated list of all athletes in your organization.
+Retrieve a paginated list of athletes in your organization.
 
-**Endpoint:** `GET /orgs/{org_id}/athletes`
+**`GET /orgs/{org_id}/athletes`**
 
-**Parameters:**
-- `org_id` (path) - Your organization identifier
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `org_id` | path | yes | Your organization identifier |
+| `limit` | query | no | Results per page (default `50`, max `100`) |
+| `offset` | query | no | Results to skip (default `0`) |
+| `sort` | query | no | Sort field: `created_at`, `first_name`, `last_name`, `last_scanned_date` (default `created_at`) |
+| `order` | query | no | `asc` or `desc` (default `desc`) |
 
-**Query Parameters:**
-- `limit` (optional) - Number of results per page (default: 50, max: 100)
-- `offset` (optional) - Number of results to skip for pagination (default: 0)
-- `sort` (optional) - Sort field: `created_at`, `first_name`, `last_name`, `last_scanned_date` (default: `created_at`)
-- `order` (optional) - Sort order: `asc` or `desc` (default: `desc`)
+**Response** `200 OK`
 
-**Response:**
 ```json
 {
   "athletes": [
@@ -86,16 +118,15 @@ Retrieve a paginated list of all athletes in your organization.
       "position": "Forward",
       "birthday": "2000-05-15",
       "teamId": "ABC",
-      "teamName": "ABC Sports Team",
+      "teamName": "Example SC",
       "biometrics": {
         "height": 185.5,
         "weight": 82.3
       },
-      "isTestAthlete": false,
       "organization": "ABC",
-      "organizationName": "ABC Sports Organization",
-      "lastScannedDate": "2025-12-01T14:30:00Z",
-      "createdAt": "2024-01-15T10:00:00Z"
+      "organizationName": "Example Sports Club",
+      "lastScannedDate": "2026-03-15T14:30:00Z",
+      "createdAt": "2025-06-01T10:00:00Z"
     }
   ],
   "pagination": {
@@ -104,7 +135,7 @@ Retrieve a paginated list of all athletes in your organization.
     "total": 125,
     "has_more": true
   },
-  "requested_at": "2025-12-04T03:30:00.123456Z"
+  "requested_at": "2026-04-29T12:00:00.000000Z"
 }
 ```
 
@@ -112,15 +143,17 @@ Retrieve a paginated list of all athletes in your organization.
 
 ### Get Athlete
 
-Retrieve detailed athlete profile information including biometrics and team association.
+Retrieve a single athlete profile with full biometric detail.
 
-**Endpoint:** `GET /orgs/{org_id}/athletes/{athlete_id}`
+**`GET /orgs/{org_id}/athletes/{athlete_id}`**
 
-**Parameters:**
-- `org_id` (path) - Your organization identifier
-- `athlete_id` (path) - Unique athlete identifier
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `org_id` | path | yes | Your organization identifier |
+| `athlete_id` | path | yes | Athlete UUID |
 
-**Response:**
+**Response** `200 OK`
+
 ```json
 {
   "athlete": {
@@ -130,18 +163,17 @@ Retrieve detailed athlete profile information including biometrics and team asso
     "position": "Forward",
     "birthday": "2000-05-15",
     "teamId": "ABC",
-    "teamName": "ABC Sports Team",
+    "teamName": "Example SC",
     "biometrics": {
       "height": 185.5,
       "weight": 82.3,
       "wingspan": 195.2
     },
     "athleteEmail": "john.doe@example.com",
-    "isTestAthlete": false,
     "organization": "ABC",
-    "organizationName": "ABC Sports Organization",
-    "lastScannedDate": "2025-12-01T14:30:00Z",
-    "createdAt": "2024-01-15T10:00:00Z"
+    "organizationName": "Example Sports Club",
+    "lastScannedDate": "2026-03-15T14:30:00Z",
+    "createdAt": "2025-06-01T10:00:00Z"
   }
 }
 ```
@@ -150,24 +182,24 @@ Retrieve detailed athlete profile information including biometrics and team asso
 
 ### List Scans
 
-Retrieve a paginated list of all scans for your organization with optional filtering.
+Retrieve a paginated list of scans for your organization. Supports filtering by athlete, status, and date range.
 
-**Endpoint:** `GET /orgs/{org_id}/scans`
+**`GET /orgs/{org_id}/scans`**
 
-**Parameters:**
-- `org_id` (path) - Your organization identifier
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `org_id` | path | yes | Your organization identifier |
+| `limit` | query | no | Results per page (default `50`, max `100`) |
+| `offset` | query | no | Results to skip (default `0`) |
+| `athlete_id` | query | no | Filter by athlete UUID |
+| `status` | query | no | Filter by status: `pending`, `processing`, `completed`, `error` |
+| `start_date` | query | no | Return scans created after this date (ISO 8601) |
+| `end_date` | query | no | Return scans created before this date (ISO 8601) |
+| `sort` | query | no | Sort field: `created_at`, `status`, `processing_time` (default `created_at`) |
+| `order` | query | no | `asc` or `desc` (default `desc`) |
 
-**Query Parameters:**
-- `limit` (optional) - Number of results per page (default: 50, max: 100)
-- `offset` (optional) - Number of results to skip for pagination (default: 0)
-- `athlete_id` (optional) - Filter by specific athlete ID
-- `status` (optional) - Filter by scan status: `pending`, `processing`, `completed`, `error`
-- `start_date` (optional) - Filter scans after this date (ISO 8601 format)
-- `end_date` (optional) - Filter scans before this date (ISO 8601 format)
-- `sort` (optional) - Sort field: `created_at`, `status`, `processing_time` (default: `created_at`)
-- `order` (optional) - Sort order: `asc` or `desc` (default: `desc`)
+**Response** `200 OK`
 
-**Response:**
 ```json
 {
   "scans": [
@@ -187,7 +219,7 @@ Retrieve a paginated list of all scans for your organization with optional filte
         }
       },
       "processingTime": 12.5,
-      "timestamp": "2025-12-01T14:30:00Z"
+      "timestamp": "2026-03-15T14:30:00Z"
     }
   ],
   "pagination": {
@@ -202,23 +234,25 @@ Retrieve a paginated list of all scans for your organization with optional filte
     "start_date": null,
     "end_date": null
   },
-  "requested_at": "2025-12-04T03:30:00.123456Z"
+  "requested_at": "2026-04-29T12:00:00.000000Z"
 }
 ```
 
 ---
 
-### Get Scan Results
+### Get Scan
 
-Access complete scan data including all body measurements and processing metadata.
+Retrieve complete scan data including all body measurements.
 
-**Endpoint:** `GET /orgs/{org_id}/scans/{scan_id}`
+**`GET /orgs/{org_id}/scans/{scan_id}`**
 
-**Parameters:**
-- `org_id` (path) - Your organization identifier
-- `scan_id` (path) - Unique scan identifier
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `org_id` | path | yes | Your organization identifier |
+| `scan_id` | path | yes | Scan UUID |
 
-**Response:**
+**Response** `200 OK`
+
 ```json
 {
   "scan": {
@@ -258,7 +292,7 @@ Access complete scan data including all body measurements and processing metadat
       }
     },
     "processingTime": 12.5,
-    "timestamp": "2025-12-01T14:30:00Z"
+    "timestamp": "2026-03-15T14:30:00Z"
   }
 }
 ```
@@ -267,16 +301,18 @@ Access complete scan data including all body measurements and processing metadat
 
 ### Get Measurements
 
-Retrieve only measurement data for a specific scan, with optional filtering by measurement type.
+Retrieve only the measurement data for a scan. Use the optional `types` filter to request specific measurement groups.
 
-**Endpoint:** `GET /orgs/{org_id}/scans/{scan_id}/measurements`
+**`GET /orgs/{org_id}/scans/{scan_id}/measurements`**
 
-**Parameters:**
-- `org_id` (path) - Your organization identifier
-- `scan_id` (path) - Unique scan identifier
-- `types` (query, optional) - Comma-separated measurement types (e.g., `height,torso,arm`)
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `org_id` | path | yes | Your organization identifier |
+| `scan_id` | path | yes | Scan UUID |
+| `types` | query | no | Comma-separated measurement groups to include (e.g. `height,torso,arm`) |
 
-**Response:**
+**Response** `200 OK`
+
 ```json
 {
   "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825",
@@ -288,89 +324,227 @@ Retrieve only measurement data for a specific scan, with optional filtering by m
     "torso": {
       "chest_circumference": 98.5,
       "waist_circumference": 82.3
-    },
-    "etc...": {
-      "etc..": 99.9,
-      "etc..": 99.9,
     }
   },
   "measurement_count": 2,
   "requested_types": "height,torso",
-  "requested_at": "2025-12-04T03:30:00.123456Z"
+  "requested_at": "2026-04-29T12:00:00.000000Z"
 }
 ```
+
+When `types` is omitted, all available measurement groups are returned.
+
+---
+
+### Get 3D Model File
+
+Generate a secure, time-limited download URL for a 3D model file.
+
+**`GET /orgs/{org_id}/scans/{scan_id}/model/url`**
+
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `org_id` | path | yes | Your organization identifier |
+| `scan_id` | path | yes | Scan UUID |
+| `extension` | query | no | File format: `pcd` or `usdz` (default `pcd`) |
+| `expiration` | query | no | URL lifetime in seconds (default `3600`, max `86400`) |
+
+**Response** `200 OK`
+
+```json
+{
+  "download_url": "https://storage.fitmatch.io/...",
+  "expires_in": 3600,
+  "expires_at": "2026-04-29T13:00:00Z",
+  "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825"
+}
+```
+
+The `download_url` is a pre-signed URL. Use a simple `GET` request (no auth header needed) to download the file before it expires.
 
 ---
 
 ### Export Data
 
-Bulk export athlete and scan data in JSON or CSV format with flexible filtering options.
+Bulk export athlete or scan data in JSON or CSV format.
 
-**Endpoint:** `POST /orgs/{org_id}/export`
+**`POST /orgs/{org_id}/export`**
 
-**Parameters:**
-- `org_id` (path) - Your organization identifier
+| Parameter | In | Required | Description |
+|---|---|---|---|
+| `org_id` | path | yes | Your organization identifier |
 
-**Request:**
+**Request body**
+
 ```json
 {
   "data_type": "scans",
   "format": "json",
   "filters": {
     "date_range": {
-      "start": "2025-01-01",
-      "end": "2025-12-31"
+      "start": "2026-01-01",
+      "end": "2026-04-29"
     }
   }
 }
 ```
 
-**Response:**
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `data_type` | string | yes | `athletes`, `scans`, or `measurements` |
+| `format` | string | no | `json` (default) or `csv` |
+| `filters.date_range.start` | string | no | ISO 8601 start date |
+| `filters.date_range.end` | string | no | ISO 8601 end date |
+| `filters.status` | string | no | Filter scans by status |
 
-The response format depends on the `data_type` requested. The data is returned directly as an array or object, not wrapped.
+**Response** `200 OK`
 
-For `data_type: "scans"`:
+For JSON format, the response body is a flat array:
+
 ```json
 [
   {
-    "scan_id": "...",
+    "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825",
     "status": "completed",
-    "measurements": {...},
-    "athlete_id": "...",
+    "measurements": { "..." : "..." },
+    "athlete_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "first_name": "John",
     "last_name": "Doe",
     "team_abbreviation": "ABC",
-    "operator_name": "Dr. Smith",
-    "custom_id": "SCAN-2025-0042",
-    "created_at": "2025-12-01T14:30:00Z"
-  },
-  ...
+    "operator_name": "Jane Trainer",
+    "custom_id": "PT-00451",
+    "created_at": "2026-03-15T14:30:00Z"
+  }
 ]
 ```
 
-For CSV format, the response will be a CSV file with appropriate headers.
+For CSV format, the response is returned with `Content-Type: text/csv` and a `Content-Disposition` header for download.
 
 ---
 
-### Get 3D Model File
+## Data Models
 
-Generate a secure, time-limited download URL for 3D model files (PCD or USDZ format).
+### Athlete
 
-**Endpoint:** `GET /orgs/{org_id}/scans/{scan_id}/model/url`
+| Field | Type | Description |
+|---|---|---|
+| `athleteId` | `string` | Unique identifier (UUID) |
+| `firstName` | `string` | First name |
+| `lastName` | `string` | Last name |
+| `position` | `string \| null` | Playing position |
+| `birthday` | `string \| null` | Date of birth (ISO 8601) |
+| `teamId` | `string` | Team identifier (abbreviation) |
+| `teamName` | `string` | Team display name |
+| `notes` | `string \| null` | Additional notes |
+| `biometrics` | `object` | Key-value biometric data (height, weight, wingspan, etc.) |
+| `athleteEmail` | `string \| null` | Contact email |
+| `organization` | `string \| null` | Organization abbreviation |
+| `organizationName` | `string \| null` | Organization display name |
+| `lastScannedDate` | `string \| null` | Most recent scan timestamp (ISO 8601) |
+| `createdAt` | `string` | Profile creation timestamp (ISO 8601) |
 
-**Parameters:**
-- `org_id` (path) - Your organization identifier
-- `scan_id` (path) - Unique scan identifier
-- `extension` (query, optional) - File format: `pcd` or `usdz` (default: `pcd`)
-- `expiration` (query, optional) - URL expiration in seconds (default: 3600, max: 86400)
+### Scan
 
-**Response:**
+| Field | Type | Description |
+|---|---|---|
+| `scanId` | `string` | Unique identifier (UUID) |
+| `athleteId` | `string` | Associated athlete UUID |
+| `teamId` | `string` | Organization identifier |
+| `scanStatus` | `string` | `pending`, `processing`, `completed`, or `error` |
+| `operatorName` | `string \| null` | Name of the person who performed the scan |
+| `customId` | `string \| null` | Your custom identifier for this scan (e.g. internal tracking number) |
+| `measurements` | `object` | Body measurements grouped by region (see below) |
+| `processingTime` | `number \| null` | Processing duration in seconds |
+| `timestamp` | `string` | Scan capture time (ISO 8601) |
+
+### Measurements
+
+Measurements are grouped by anatomical region. The exact set of fields depends on the scan and processing configuration.
+
+| Group | Example Fields |
+|---|---|
+| `height` | `body_height`, `seated_height` |
+| `torso` | `chest_circumference`, `waist_circumference`, `hip_circumference`, `shoulder_width` |
+| `arm` | `upper_arm_circumference`, `forearm_circumference`, `arm_length` |
+| `legs` | `upper_thigh_circumference_left`, `upper_thigh_circumference_right`, `calf_circumference_left`, `calf_circumference_right`, `leg_length` |
+| `ratios` | `shoulder_to_hip_ratio`, `waist_to_hip_ratio` |
+| `physique_metrics` | `bmi` (Body Mass Index), `bri` (Body Roundness Index) |
+
+All measurement values are numeric (centimeters for lengths/circumferences, unitless for ratios and indices).
+
+---
+
+## Error Handling
+
+### Status Codes
+
+| Code | Meaning |
+|---|---|
+| `200` | Success |
+| `400` | Bad request — invalid or missing parameters |
+| `401` | Unauthorized — missing or expired token |
+| `403` | Forbidden — token valid but insufficient permissions |
+| `404` | Not found — resource does not exist |
+| `429` | Too many requests — rate limit exceeded |
+| `500` | Internal server error |
+
+### Error Response Format
+
+All errors follow a consistent structure:
+
 ```json
 {
-  "download_url": "https://...",
-  "expires_in": 3600,
-  "expires_at": "2025-12-04T04:30:00Z",
-  "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825"
+  "error": {
+    "code": "SCAN_NOT_FOUND",
+    "message": "Scan not found",
+    "timestamp": "2026-04-29T12:00:00Z"
+  }
+}
+```
+
+### Common Error Codes
+
+| Code | Status | Description |
+|---|---|---|
+| `MISSING_AUTH` | 401 | No `Authorization` header provided |
+| `INVALID_TOKEN` | 401 | Token is expired or malformed |
+| `ORG_ACCESS_DENIED` | 403 | Token does not grant access to the requested organization |
+| `ATHLETE_NOT_FOUND` | 404 | No athlete with the given ID exists in your organization |
+| `SCAN_NOT_FOUND` | 404 | No scan with the given ID exists in your organization |
+| `RATE_LIMIT_EXCEEDED` | 429 | You have exceeded your plan's request quota |
+
+---
+
+## Rate Limits
+
+Request quotas depend on your subscription tier:
+
+| Tier | Requests / Minute | Requests / Hour | Data Export / Day |
+|---|---|---|---|
+| Basic | 100 | 5,000 | 100 MB |
+| Premium | 500 | 25,000 | 1 GB |
+| Enterprise | 1,000 | 50,000 | 5 GB |
+
+Every response includes rate-limit headers:
+
+```
+X-RateLimit-Limit: 500
+X-RateLimit-Remaining: 495
+X-RateLimit-Reset: 1745928000
+```
+
+When you receive a `429` response, back off and retry. We recommend exponential backoff:
+
+```javascript
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.status !== 429) return response;
+
+    const delay = Math.pow(2, attempt) * 1000; // 1 s, 2 s, 4 s
+    await new Promise(r => setTimeout(r, delay));
+  }
+  throw new Error('Rate limit: max retries exceeded');
 }
 ```
 
@@ -378,125 +552,147 @@ Generate a secure, time-limited download URL for 3D model files (PCD or USDZ for
 
 ## Code Examples
 
-### JavaScript/Node.js
+### cURL
+
+```bash
+# 1. Authenticate
+TOKEN=$(curl -s -X POST https://prod-wl.fitmatch.io/reflect-auth/client-credentials \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "grant_type": "client_credentials"
+  }' | jq -r '.access_token')
+
+# 2. List athletes
+curl -s "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/athletes?limit=25" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 3. Get a single athlete
+curl -s "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/athletes/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 4. List completed scans
+curl -s "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/scans?status=completed&limit=50" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 5. Get a single scan (includes operatorName and customId)
+curl -s "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/scans/5bb5e4d3-005d-4f30-8ce2-616a4b2d1825" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 6. Download a 3D model file
+URL=$(curl -s "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/scans/5bb5e4d3-005d-4f30-8ce2-616a4b2d1825/model/url?extension=pcd" \
+  -H "Authorization: Bearer $TOKEN" | jq -r '.download_url')
+curl -o model.pcd "$URL"
+
+# 7. Export scan data
+curl -s -X POST "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"data_type":"scans","format":"json","filters":{"date_range":{"start":"2026-01-01","end":"2026-04-29"}}}'
+```
+
+
+### JavaScript / Node.js
 
 ```javascript
-// Initialize API client
 class ReflectAPI {
-  constructor(clientId, clientSecret, environment = 'prod-wl') {
+  constructor(clientId, clientSecret) {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
-    this.baseUrl = `https://${environment}.fitmatch.io`;
+    this.baseUrl = 'https://prod-wl.fitmatch.io/reflect';
     this.token = null;
+    this.tokenExpiresAt = 0;
   }
 
   async authenticate() {
-    const response = await fetch(`${this.baseUrl}/reflect-auth/client-credentials`, {
+    const res = await fetch(`${this.baseUrl}-auth/client-credentials`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         client_id: this.clientId,
         client_secret: this.clientSecret,
-        grant_type: 'client_credentials'
-      })
+        grant_type: 'client_credentials',
+      }),
     });
-    
-    const data = await response.json();
+    if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
+
+    const data = await res.json();
     this.token = data.access_token;
-    return this.token;
+    this.tokenExpiresAt = Date.now() + data.expires_in * 1000;
   }
 
-  async getAthlete(orgId, athleteId) {
-    if (!this.token) await this.authenticate();
-    
-    const response = await fetch(
-      `${this.baseUrl}/client/v1/orgs/${orgId}/athletes/${athleteId}`,
-      {
-        headers: { 'Authorization': `Bearer ${this.token}` }
-      }
-    );
-    
-    return await response.json();
+  async request(path, options = {}) {
+    if (!this.token || Date.now() >= this.tokenExpiresAt) {
+      await this.authenticate();
+    }
+    const res = await fetch(`${this.baseUrl}/client/v1${path}`, {
+      ...options,
+      headers: { Authorization: `Bearer ${this.token}`, ...options.headers },
+    });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    return res.json();
   }
 
-  async listAthletes(orgId, options = {}) {
-    if (!this.token) await this.authenticate();
-    
-    const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit);
-    if (options.offset) params.append('offset', options.offset);
-    if (options.sort) params.append('sort', options.sort);
-    if (options.order) params.append('order', options.order);
-    
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    const response = await fetch(
-      `${this.baseUrl}/client/v1/orgs/${orgId}/athletes${queryString}`,
-      {
-        headers: { 'Authorization': `Bearer ${this.token}` }
-      }
-    );
-    
-    return await response.json();
+  // Athletes
+  listAthletes(orgId, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/orgs/${orgId}/athletes${qs ? `?${qs}` : ''}`);
   }
 
-  async getScan(orgId, scanId) {
-    if (!this.token) await this.authenticate();
-    
-    const response = await fetch(
-      `${this.baseUrl}/client/v1/orgs/${orgId}/scans/${scanId}`,
-      {
-        headers: { 'Authorization': `Bearer ${this.token}` }
-      }
-    );
-    
-    return await response.json();
+  getAthlete(orgId, athleteId) {
+    return this.request(`/orgs/${orgId}/athletes/${athleteId}`);
   }
 
-  async listScans(orgId, options = {}) {
-    if (!this.token) await this.authenticate();
-    
-    const params = new URLSearchParams();
-    if (options.limit) params.append('limit', options.limit);
-    if (options.offset) params.append('offset', options.offset);
-    if (options.athlete_id) params.append('athlete_id', options.athlete_id);
-    if (options.status) params.append('status', options.status);
-    if (options.start_date) params.append('start_date', options.start_date);
-    if (options.end_date) params.append('end_date', options.end_date);
-    if (options.sort) params.append('sort', options.sort);
-    if (options.order) params.append('order', options.order);
-    
-    const queryString = params.toString() ? `?${params.toString()}` : '';
-    const response = await fetch(
-      `${this.baseUrl}/client/v1/orgs/${orgId}/scans${queryString}`,
-      {
-        headers: { 'Authorization': `Bearer ${this.token}` }
-      }
-    );
-    
-    return await response.json();
+  // Scans
+  listScans(orgId, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    return this.request(`/orgs/${orgId}/scans${qs ? `?${qs}` : ''}`);
+  }
+
+  getScan(orgId, scanId) {
+    return this.request(`/orgs/${orgId}/scans/${scanId}`);
+  }
+
+  // Measurements
+  getMeasurements(orgId, scanId, types) {
+    const qs = types ? `?types=${types}` : '';
+    return this.request(`/orgs/${orgId}/scans/${scanId}/measurements${qs}`);
+  }
+
+  // 3D model download URL
+  getModelUrl(orgId, scanId, extension = 'pcd') {
+    return this.request(`/orgs/${orgId}/scans/${scanId}/model/url?extension=${extension}`);
+  }
+
+  // Export
+  exportData(orgId, body) {
+    return this.request(`/orgs/${orgId}/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   }
 }
 
-// Usage
-const api = new ReflectAPI('your_client_id', 'your_client_secret', 'prod-wl');
+// --- Usage ---
 
-// List all athletes
-const athletesList = await api.listAthletes('ABC', { limit: 100, sort: 'last_name', order: 'asc' });
+const api = new ReflectAPI('YOUR_CLIENT_ID', 'YOUR_CLIENT_SECRET');
 
-// Get specific athlete
-const athlete = await api.getAthlete('ABC', 'athlete-id');
+// List athletes sorted by last name
+const { athletes, pagination } = await api.listAthletes('ABC', {
+  limit: 100,
+  sort: 'last_name',
+  order: 'asc',
+});
 
-// List all scans
-const scansList = await api.listScans('ABC', { limit: 50, status: 'completed' });
+// Get a single scan — response includes operatorName and customId
+const { scan } = await api.getScan('ABC', '5bb5e4d3-005d-4f30-8ce2-616a4b2d1825');
+console.log(scan.operatorName); // "Jane Trainer"
+console.log(scan.customId);     // "PT-00451"
 
-// List scans for specific athlete
-const athleteScans = await api.listScans('ABC', { athlete_id: 'athlete-id', limit: 20 });
-
-// Get specific scan
-const scan = await api.getScan('ABC', 'scan-id');
-// scan.scan includes operatorName and customId fields
-console.log(scan.scan.operatorName); // "Dr. Smith"
-console.log(scan.scan.customId);     // "SCAN-2025-0042"
+// Download a 3D model
+const { download_url } = await api.getModelUrl('ABC', scan.scanId, 'pcd');
 ```
 
 ### Python
@@ -505,427 +701,165 @@ console.log(scan.scan.customId);     // "SCAN-2025-0042"
 import requests
 from datetime import datetime, timedelta
 
+
 class ReflectAPI:
-    def __init__(self, client_id, client_secret, environment='prod-wl'):
+    """Lightweight client for the Reflect Client Data API."""
+
+    BASE = "https://prod-wl.fitmatch.io/reflect"
+
+    def __init__(self, client_id: str, client_secret: str):
         self.client_id = client_id
         self.client_secret = client_secret
-        self.base_url = f'https://{environment}.fitmatch.io'
-        self.token = None
-        self.token_expiry = None
-    
-    def authenticate(self):
-        """Get access token"""
-        response = requests.post(
-            f'{self.base_url}/reflect-auth/client-credentials',
+        self._token: str | None = None
+        self._expires_at: datetime = datetime.min
+
+    # --- auth ---
+
+    def _ensure_token(self):
+        if self._token and datetime.now() < self._expires_at:
+            return
+        resp = requests.post(
+            f"{self.BASE}-auth/client-credentials",
             json={
-                'client_id': self.client_id,
-                'client_secret': self.client_secret,
-                'grant_type': 'client_credentials'
-            }
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "client_credentials",
+            },
         )
-        response.raise_for_status()
-        
-        data = response.json()
-        self.token = data['access_token']
-        self.token_expiry = datetime.now() + timedelta(seconds=data['expires_in'])
-        
-        return self.token
-    
-    def _get_headers(self):
-        """Get authorization headers with valid token"""
-        if not self.token or datetime.now() >= self.token_expiry:
-            self.authenticate()
-        
-        return {'Authorization': f'Bearer {self.token}'}
-    
-    def get_athlete(self, org_id, athlete_id):
-        """Get athlete details"""
-        response = requests.get(
-            f'{self.base_url}/client/v1/orgs/{org_id}/athletes/{athlete_id}',
-            headers=self._get_headers()
+        resp.raise_for_status()
+        data = resp.json()
+        self._token = data["access_token"]
+        self._expires_at = datetime.now() + timedelta(seconds=data["expires_in"] - 30)
+
+    def _headers(self) -> dict:
+        self._ensure_token()
+        return {"Authorization": f"Bearer {self._token}"}
+
+    # --- athletes ---
+
+    def list_athletes(self, org_id: str, **params) -> dict:
+        resp = requests.get(
+            f"{self.BASE}/client/v1/orgs/{org_id}/athletes",
+            headers=self._headers(),
+            params=params,
         )
-        response.raise_for_status()
-        return response.json()
-    
-    def list_athletes(self, org_id, limit=50, offset=0, sort='created_at', order='desc'):
-        """List all athletes with pagination"""
-        params = {
-            'limit': limit,
-            'offset': offset,
-            'sort': sort,
-            'order': order
-        }
-        response = requests.get(
-            f'{self.base_url}/client/v1/orgs/{org_id}/athletes',
-            headers=self._get_headers(),
-            params=params
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_athlete(self, org_id: str, athlete_id: str) -> dict:
+        resp = requests.get(
+            f"{self.BASE}/client/v1/orgs/{org_id}/athletes/{athlete_id}",
+            headers=self._headers(),
         )
-        response.raise_for_status()
-        return response.json()
-    
-    def get_scan(self, org_id, scan_id):
-        """Get scan results"""
-        response = requests.get(
-            f'{self.base_url}/client/v1/orgs/{org_id}/scans/{scan_id}',
-            headers=self._get_headers()
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- scans ---
+
+    def list_scans(self, org_id: str, **params) -> dict:
+        resp = requests.get(
+            f"{self.BASE}/client/v1/orgs/{org_id}/scans",
+            headers=self._headers(),
+            params=params,
         )
-        response.raise_for_status()
-        return response.json()
-    
-    def list_scans(self, org_id, limit=50, offset=0, athlete_id=None, status=None, 
-                   start_date=None, end_date=None, sort='created_at', order='desc'):
-        """List all scans with pagination and filtering"""
-        params = {
-            'limit': limit,
-            'offset': offset,
-            'sort': sort,
-            'order': order
-        }
-        if athlete_id:
-            params['athlete_id'] = athlete_id
-        if status:
-            params['status'] = status
-        if start_date:
-            params['start_date'] = start_date
-        if end_date:
-            params['end_date'] = end_date
-            
-        response = requests.get(
-            f'{self.base_url}/client/v1/orgs/{org_id}/scans',
-            headers=self._get_headers(),
-            params=params
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_scan(self, org_id: str, scan_id: str) -> dict:
+        resp = requests.get(
+            f"{self.BASE}/client/v1/orgs/{org_id}/scans/{scan_id}",
+            headers=self._headers(),
         )
-        response.raise_for_status()
-        return response.json()
-    
-    def export_data(self, org_id, data_type='scans', format='json', filters=None):
-        """Export bulk data"""
-        payload = {
-            'data_type': data_type,
-            'format': format
-        }
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- measurements ---
+
+    def get_measurements(self, org_id: str, scan_id: str, types: str | None = None) -> dict:
+        params = {"types": types} if types else {}
+        resp = requests.get(
+            f"{self.BASE}/client/v1/orgs/{org_id}/scans/{scan_id}/measurements",
+            headers=self._headers(),
+            params=params,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- 3D model ---
+
+    def get_model_url(self, org_id: str, scan_id: str, extension: str = "pcd") -> dict:
+        resp = requests.get(
+            f"{self.BASE}/client/v1/orgs/{org_id}/scans/{scan_id}/model/url",
+            headers=self._headers(),
+            params={"extension": extension},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- export ---
+
+    def export_data(self, org_id: str, data_type: str, fmt: str = "json", filters: dict | None = None) -> dict:
+        body = {"data_type": data_type, "format": fmt}
         if filters:
-            payload['filters'] = filters
-        
-        response = requests.post(
-            f'{self.base_url}/client/v1/orgs/{org_id}/export',
-            headers=self._get_headers(),
-            json=payload
+            body["filters"] = filters
+        resp = requests.post(
+            f"{self.BASE}/client/v1/orgs/{org_id}/export",
+            headers=self._headers(),
+            json=body,
         )
-        response.raise_for_status()
-        return response.json()
+        resp.raise_for_status()
+        return resp.json()
 
-# Usage
-api = ReflectAPI('your_client_id', 'your_client_secret', 'prod-wl')
 
-# List all athletes
-athletes_list = api.list_athletes('ABC', limit=100, sort='last_name', order='asc')
+# --- Usage ---
 
-# Get specific athlete
-athlete = api.get_athlete('ABC', 'athlete-id')
+api = ReflectAPI("YOUR_CLIENT_ID", "YOUR_CLIENT_SECRET")
 
-# List all scans
-scans_list = api.list_scans('ABC', limit=50, status='completed')
+# List athletes
+data = api.list_athletes("ABC", limit=100, sort="last_name", order="asc")
+for athlete in data["athletes"]:
+    print(athlete["firstName"], athlete["lastName"])
 
-# List scans for specific athlete
-athlete_scans = api.list_scans('ABC', athlete_id='athlete-id', limit=20)
+# Get a single scan — includes operatorName and customId
+scan_data = api.get_scan("ABC", "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825")
+scan = scan_data["scan"]
+print(scan["operatorName"])  # "Jane Trainer"
+print(scan["customId"])       # "PT-00451"
 
-# Get specific scan
-scan = api.get_scan('ABC', 'scan-id')
-# scan['scan'] includes operatorName and customId fields
-print(scan['scan']['operatorName'])  # "Dr. Smith"
-print(scan['scan']['customId'])      # "SCAN-2025-0042"
-
-# Export all scans from 2025
-export_data = api.export_data(
-    'ABC',
-    data_type='scans',
+# Export all completed scans for Q1 2026
+export = api.export_data(
+    "ABC",
+    data_type="scans",
     filters={
-        'date_range': {
-            'start': '2025-01-01',
-            'end': '2025-12-31'
-        }
-    }
+        "date_range": {"start": "2026-01-01", "end": "2026-03-31"},
+        "status": "completed",
+    },
 )
-# export_data is the raw array of scans
-```
-
-### cURL
-
-```bash
-# Get access token
-TOKEN=$(curl -X POST https://prod-wl.fitmatch.io/reflect-auth/client-credentials \
-  -H "Content-Type: application/json" \
-  -d '{
-    "client_id": "your_client_id",
-    "client_secret": "your_client_secret",
-    "grant_type": "client_credentials"
-  }' | jq -r '.access_token')
-
-# List all athletes
-curl -X GET "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/athletes?limit=100&sort=last_name&order=asc" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Get specific athlete
-curl -X GET https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/athletes/athlete-id \
-  -H "Authorization: Bearer $TOKEN"
-
-# List all scans
-curl -X GET "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/scans?limit=50&status=completed" \
-  -H "Authorization: Bearer $TOKEN"
-
-# List scans for specific athlete
-curl -X GET "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/scans?athlete_id=athlete-id&limit=20" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Get specific scan (response includes operatorName and customId)
-curl -X GET https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/scans/scan-id \
-  -H "Authorization: Bearer $TOKEN"
-
-# Export data
-curl -X POST https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/export \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "data_type": "scans",
-    "format": "json",
-    "filters": {
-      "date_range": {
-        "start": "2025-01-01",
-        "end": "2025-12-31"
-      }
-    }
-  }'
 ```
 
 ---
 
-## Data Models
+## Security Best Practices
 
-### Athlete
+**Credentials**
+- Store `client_id` and `client_secret` in environment variables or a secrets manager. Never commit them to source control or embed them in client-side code.
+- Use separate credentials for development and production environments.
 
-```typescript
-{
-  athleteId: string;           // Unique identifier (caller-supplied UUID or auto-generated)
-  firstName: string;           // Athlete first name
-  lastName: string;            // Athlete last name
-  position: string | null;     // Playing position
-  birthday: string | null;     // Date of birth (ISO 8601)
-  teamId: string;              // Team identifier (abbreviation)
-  teamName: string;            // Team display name
-  notes: string | null;        // Additional notes
-  biometrics: {                // Custom biometric measurements
-    height: number;
-    weight: number;
-    wingspan: number;
-    // Additional custom fields
-  };
-  athleteEmail: string | null; // Contact email
-  isTestAthlete: boolean;      // Whether this is a test athlete
-  organization: string | null; // Organization abbreviation
-  organizationName: string | null; // Organization display name
-  lastScannedDate: string | null;  // Most recent scan date
-  createdAt: string;           // Account creation date
-}
-```
+**Tokens**
+- Cache tokens for their full 1-hour lifetime to avoid unnecessary auth calls.
+- Implement automatic refresh: when you receive a `401`, request a new token and retry.
 
-### Scan
+**Network**
+- Always use HTTPS. The API rejects plain HTTP.
+- Set reasonable request timeouts (we recommend 30 seconds).
+- Never log tokens or credentials.
 
-```typescript
-{
-  scanId: string;              // Unique identifier
-  athleteId: string;           // Associated athlete UUID
-  teamId: string;              // Organization identifier
-  scanStatus: string;          // "pending" | "processing" | "completed" | "error"
-  operatorName: string | null; // Name of the person who performed the scan
-  customId: string | null;     // Your custom identifier for this scan (e.g., internal tracking ID)
-  measurements: {              // Body measurements (see below)
-    height: {...},
-    torso: {...},
-    arm: {...},
-    legs: {...},
-    ratios: {...},
-    physique_metrics: {...}
-  };
-  processingTime: number | null;  // Processing duration (seconds)
-  scanFileUrl: string | null;  // URL to the scan file in S3
-  isTestScan: boolean;         // Whether this is a test scan
-  timestamp: string;           // Scan capture time (ISO 8601)
-}
-```
-
-### Measurements
-
-Body measurements are organized by anatomical region:
-
-```typescript
-{
-  height: {
-    body_height: number; 
-    seated_height: number;
-  },
-  torso: {
-    chest_circumference: number;
-    waist_circumference: number;
-    hip_circumference: number;
-    shoulder_width: number;
-    // Additional torso measurements
-  },
-  arm: {
-    upper_arm_circumference: number;
-    forearm_circumference: number;
-    arm_length: number;
-    // Additional arm measurements
-  },
-  legs: {
-    upper_thigh_circumference_left: number;
-    upper_thigh_circumference_right: number;
-    calf_circumference_left: number;
-    calf_circumference_right: number;
-    leg_length: number;
-    // Additional leg measurements
-  },
-  ratios: {
-    shoulder_to_hip_ratio: number;
-    waist_to_hip_ratio: number;
-    // Additional body ratios
-  },
-  physique_metrics: {
-    bmi: number;               // Body Mass Index
-    bri: number;               // Body Roundness Index
-    // Additional metrics
-  }
-}
-```
+**Access control**
+- Tokens are scoped to your organization. You can only access data belonging to your `org_id`.
+- All API access is logged for audit purposes.
 
 ---
 
-## Error Handling
+## Support
 
-### HTTP Status Codes
-
-- `200` - Success
-- `400` - Bad Request (invalid parameters)
-- `401` - Unauthorized (missing or invalid token)
-- `403` - Forbidden (insufficient permissions)
-- `404` - Not Found (resource doesn't exist)
-- `429` - Too Many Requests (rate limit exceeded)
-- `500` - Internal Server Error
-
-### Error Response Format
-
-```json
-{
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable error description",
-    "timestamp": "2025-12-04T03:30:00Z"
-  }
-}
-```
-
-### Common Errors
-
-**Invalid Token:**
-```json
-{
-  "error": {
-    "code": "INVALID_TOKEN",
-    "message": "Token validation failed",
-    "timestamp": "2025-12-04T03:30:00Z"
-  }
-}
-```
-
-**Resource Not Found:**
-```json
-{
-  "error": {
-    "code": "SCAN_NOT_FOUND",
-    "message": "Scan not found",
-    "timestamp": "2025-12-04T03:30:00Z"
-  }
-}
-```
-
-**Rate Limit Exceeded:**
-```json
-{
-  "error": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "message": "Rate limit exceeded. Please try again later.",
-    "timestamp": "2025-12-04T03:30:00Z"
-  }
-}
-```
-
----
-
-## Rate Limits
-
-API usage is limited based on your subscription tier:
-
-| Tier | Requests/Minute | Requests/Hour | Data Export/Day |
-|------|----------------|---------------|-----------------|
-| Basic | 100 | 5,000 | 100 MB |
-| Premium | 500 | 25,000 | 1 GB |
-| Enterprise | 1,000 | 50,000 | 5 GB |
-
-Rate limit information is included in response headers:
-
-```
-X-RateLimit-Limit: 500
-X-RateLimit-Remaining: 495
-X-RateLimit-Reset: 1638360000
-```
-
-When rate limits are exceeded, implement exponential backoff:
-
-```javascript
-async function fetchWithRetry(url, options, maxRetries = 3) {
-  for (let i = 0; i < maxRetries; i++) {
-    const response = await fetch(url, options);
-    
-    if (response.status !== 429) {
-      return response;
-    }
-    
-    // Exponential backoff: 1s, 2s, 4s
-    const delay = Math.pow(2, i) * 1000;
-    await new Promise(resolve => setTimeout(resolve, delay));
-  }
-  
-  throw new Error('Max retries exceeded');
-}
-```
-
----
-
-## Security
-
-### Best Practices
-
-**Credential Management:**
-- Store credentials in environment variables or secrets manager
-- Never commit credentials to version control
-- Never expose credentials in client-side code
-- Use separate credentials for development and production
-
-**Token Management:**
-- Cache tokens for their full lifetime (1 hour)
-- Implement automatic token refresh
-- Handle 401 errors by refreshing and retrying
-
-**Network Security:**
-- Always use HTTPS
-- Verify SSL certificates in production
-- Implement request timeouts
-- Log errors without exposing sensitive data
-
-**Access Control:**
-- Tokens are scoped to your organization
-- You can only access your own data
-- All API access is logged for audit purposes
-
----
-
+If you have questions or run into issues, reach out to your FitMatch account representative.

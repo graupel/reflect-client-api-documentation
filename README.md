@@ -465,7 +465,7 @@ Measurements are grouped by anatomical region. The exact set of fields depends o
 | `ratios` | `shoulder_to_hip_ratio`, `waist_to_hip_ratio` |
 | `physique_metrics` | `bmi` (Body Mass Index), `bri` (Body Roundness Index) |
 
-All measurement values are numeric (centimeters for lengths/circumferences, unitless for ratios and indices).
+All measurement values are numeric. Units are specified in the API response alongside the values.
 
 ---
 

@@ -1,8 +1,3 @@
----
-title: Reflect Client Data API
-description: API reference for accessing athlete biometric data and 3D body scan measurements.
----
-
 # Reflect Client Data API Reference
 
 Access athlete biometric data and 3D body scan measurements programmatically through our secure REST API.

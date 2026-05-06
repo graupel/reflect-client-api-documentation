@@ -341,7 +341,7 @@ Generate a secure, time-limited download URL for a 3D model file.
 |---|---|---|---|
 | `org_id` | path | yes | Your organization identifier |
 | `scan_id` | path | yes | Scan UUID |
-| `extension` | query | no | File format: `pcd` or `usdz` (default `pcd`) |
+| `extension` | query | no | File format: `pcd`, `usdz`, or `obj` (default `pcd`) |
 | `expiration` | query | no | URL lifetime in seconds (default `3600`, max `86400`) |
 
 **Response** `200 OK`

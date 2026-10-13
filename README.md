@@ -120,8 +120,8 @@ Retrieve a paginated list of athletes in your organization.
       },
       "organization": "ABC",
       "organizationName": "Example Sports Club",
-      "lastScannedDate": "2026-03-15T14:30:00Z",
-      "createdAt": "2025-06-01T10:00:00Z"
+      "lastScannedDate": "2026-03-15T14:30:00+00:00",
+      "createdAt": "2025-06-01T10:00:00+00:00"
     }
   ],
   "pagination": {
@@ -164,12 +164,16 @@ Retrieve a single athlete profile with full biometric detail.
       "weight": 82.3,
       "wingspan": 195.2
     },
+    "notes": null,
     "athleteEmail": "john.doe@example.com",
+    "isTestAthlete": false,
     "organization": "ABC",
     "organizationName": "Example Sports Club",
-    "lastScannedDate": "2026-03-15T14:30:00Z",
-    "createdAt": "2025-06-01T10:00:00Z"
-  }
+    "lastScannedDate": "2026-03-15T14:30:00+00:00",
+    "createdAt": "2025-06-01T10:00:00+00:00",
+    "customAthleteId": "PT-00451"
+  },
+  "requested_at": "2026-04-29T12:00:00.000000Z"
 }
 ```
 
@@ -187,7 +191,7 @@ Retrieve a paginated list of scans for your organization. Supports filtering by 
 | `limit` | query | no | Results per page (default `50`, max `100`) |
 | `offset` | query | no | Results to skip (default `0`) |
 | `athlete_id` | query | no | Filter by athlete UUID |
-| `status` | query | no | Filter by status: `pending`, `processing`, `completed`, `error` |
+| `status` | query | no | Filter by status: `pending`, `queued`, `processing`, `completed`, `error` |
 | `start_date` | query | no | Return scans created after this date (ISO 8601) |
 | `end_date` | query | no | Return scans created before this date (ISO 8601) |
 | `sort` | query | no | Sort field: `created_at`, `status`, `processing_time` (default `created_at`) |
@@ -207,14 +211,16 @@ Retrieve a paginated list of scans for your organization. Supports filtering by 
       "customId": "PT-00451",
       "measurements": {
         "height": {
-          "body_height": 185.5
+          "body_height": 1.855
         },
         "torso": {
-          "chest_circumference": 98.5
+          "chest_circumference": 0.985
         }
       },
       "processingTime": 12.5,
-      "timestamp": "2026-03-15T14:30:00Z"
+      "scanFileUrl": "https://...",
+      "isTestScan": false,
+      "timestamp": "2026-03-15T14:30:00+00:00"
     }
   ],
   "pagination": {
@@ -259,36 +265,47 @@ Retrieve complete scan data including all body measurements.
     "customId": "PT-00451",
     "measurements": {
       "height": {
-        "body_height": 185.5,
-        "seated_height": 95.2
+        "body_height": 1.855,
+        "seated_height": 0.952
       },
       "torso": {
-        "chest_circumference": 98.5,
-        "waist_circumference": 82.3,
-        "hip_circumference": 95.7
+        "chest_circumference": 0.985,
+        "waist_circumference": 0.823,
+        "hip_circumference": 0.957
       },
       "arm": {
-        "upper_arm_circumference": 32.1,
-        "forearm_circumference": 27.8
+        "upper_arm_circumference_left": 0.321,
+        "upper_arm_circumference_right": 0.324,
+        "forearm_circumference_left": 0.278,
+        "forearm_circumference_right": 0.280
       },
       "legs": {
-        "upper_thigh_circumference_left": 58.2,
-        "upper_thigh_circumference_right": 58.5,
-        "calf_circumference_left": 38.9,
-        "calf_circumference_right": 39.1
+        "upper_thigh_circumference_left": 0.582,
+        "upper_thigh_circumference_right": 0.585,
+        "calf_circumference_left": 0.389,
+        "calf_circumference_right": 0.391
       },
       "ratios": {
-        "shoulder_to_hip_ratio": 1.42,
-        "waist_to_hip_ratio": 0.86
+        "waist_to_hip_ratio": 0.86,
+        "waist_to_height_ratio": 0.44
       },
       "physique_metrics": {
         "bmi": 23.9,
         "bri": 3.45
+      },
+      "user_inputs": {
+        "gender": "Male",
+        "weight": 181,
+        "height_ft": 6,
+        "height_in": 1
       }
     },
     "processingTime": 12.5,
-    "timestamp": "2026-03-15T14:30:00Z"
-  }
+    "scanFileUrl": "https://...",
+    "isTestScan": false,
+    "timestamp": "2026-03-15T14:30:00+00:00"
+  },
+  "requested_at": "2026-04-29T12:00:00.000000Z"
 }
 ```
 
@@ -313,21 +330,21 @@ Retrieve only the measurement data for a scan. Use the optional `types` filter t
   "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825",
   "measurements": {
     "height": {
-      "body_height": 185.5,
-      "seated_height": 95.2
+      "body_height": 1.855,
+      "seated_height": 0.952
     },
     "torso": {
-      "chest_circumference": 98.5,
-      "waist_circumference": 82.3
+      "chest_circumference": 0.985,
+      "waist_circumference": 0.823
     }
   },
   "measurement_count": 2,
-  "requested_types": "height,torso",
+  "requested_types": ["height", "torso"],
   "requested_at": "2026-04-29T12:00:00.000000Z"
 }
 ```
 
-When `types` is omitted, all available measurement groups are returned.
+When `types` is omitted, all available measurement groups are returned and `requested_types` is the string `"all"`. `measurement_count` is the number of measurement groups returned.
 
 ---
 
@@ -348,7 +365,7 @@ Generate a secure, time-limited download URL for a 3D model file.
 
 ```json
 {
-  "download_url": "https://storage.fitmatch.io/...",
+  "download_url": "https://<pre-signed-url>...",
   "expires_in": 3600,
   "expires_at": "2026-04-29T13:00:00Z",
   "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825"
@@ -388,13 +405,15 @@ Bulk export athlete or scan data in JSON or CSV format.
 |---|---|---|---|
 | `data_type` | string | yes | `athletes`, `scans`, or `measurements` |
 | `format` | string | no | `json` (default) or `csv` |
-| `filters.date_range.start` | string | no | ISO 8601 start date |
-| `filters.date_range.end` | string | no | ISO 8601 end date |
-| `filters.status` | string | no | Filter scans by status |
+| `filters.date_range.start` | string | no | ISO 8601 start date (inclusive) |
+| `filters.date_range.end` | string | no | ISO 8601 end date. A date without a time is treated as midnight at the start of that day — to include a whole day, pass the following day or a full timestamp. |
+| `filters.status` | string | no | Filter scans by status (`scans` export only) |
 
 **Response** `200 OK`
 
-For JSON format, the response body is a flat array:
+For JSON format, the response body is a flat array of rows. Export rows use `snake_case` field names.
+
+`data_type: "scans"` — one row per scan:
 
 ```json
 [
@@ -402,22 +421,42 @@ For JSON format, the response body is a flat array:
     "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825",
     "status": "completed",
     "measurements": { "..." : "..." },
+    "processing_time": 12.5,
+    "created_at": "2026-03-15T14:30:00+00:00",
     "athlete_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "first_name": "John",
     "last_name": "Doe",
     "team_abbreviation": "ABC",
-    "operator_name": "Jane Trainer",
     "custom_id": "PT-00451",
-    "created_at": "2026-03-15T14:30:00Z"
+    "operator_name": "Jane Trainer"
   }
 ]
 ```
+
+`data_type: "measurements"` — one row per measurement group per scan; `measurement_type` is the group name (e.g. `torso`) and `measurement_value` is that group's object:
+
+```json
+[
+  {
+    "scan_id": "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825",
+    "athlete_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "athlete_name": "John Doe",
+    "measurement_type": "torso",
+    "measurement_value": { "chest_circumference": 0.985, "waist_circumference": 0.823 },
+    "scan_date": "2026-03-15T14:30:00+00:00"
+  }
+]
+```
+
+`data_type: "athletes"` — one row per athlete profile in your organization.
 
 For CSV format, the response is returned with `Content-Type: text/csv` and a `Content-Disposition` header for download.
 
 ---
 
 ## Data Models
+
+Timestamps on athletes and scans (`createdAt`, `lastScannedDate`, `timestamp`, and export `created_at` / `scan_date`) are ISO 8601 in UTC with an explicit offset, e.g. `2026-03-15T14:30:00.123456+00:00`. Fractional seconds may be present or absent. `requested_at` uses the `Z` suffix. Use a standard ISO 8601 parser.
 
 ### Athlete
 
@@ -433,10 +472,12 @@ For CSV format, the response is returned with `Content-Type: text/csv` and a `Co
 | `notes` | `string \| null` | Additional notes |
 | `biometrics` | `object` | Key-value biometric data (height, weight, wingspan, etc.) |
 | `athleteEmail` | `string \| null` | Contact email |
+| `isTestAthlete` | `boolean` | `true` for test/demo profiles |
 | `organization` | `string \| null` | Organization abbreviation |
 | `organizationName` | `string \| null` | Organization display name |
 | `lastScannedDate` | `string \| null` | Most recent scan timestamp (ISO 8601) |
 | `createdAt` | `string` | Profile creation timestamp (ISO 8601) |
+| `customAthleteId` | `string` | Your custom identifier for this athlete. Omitted when not set. |
 
 ### Scan
 
@@ -445,27 +486,86 @@ For CSV format, the response is returned with `Content-Type: text/csv` and a `Co
 | `scanId` | `string` | Unique identifier (UUID) |
 | `athleteId` | `string` | Associated athlete UUID |
 | `teamId` | `string` | Organization identifier |
-| `scanStatus` | `string` | `pending`, `processing`, `completed`, or `error` |
+| `scanStatus` | `string` | `pending`, `queued`, `processing`, `completed`, or `error` |
 | `operatorName` | `string \| null` | Name of the person who performed the scan |
 | `customId` | `string \| null` | Your custom identifier for this scan (e.g. internal tracking number) |
 | `measurements` | `object` | Body measurements grouped by region (see below) |
 | `processingTime` | `number \| null` | Processing duration in seconds |
+| `scanFileUrl` | `string \| null` | Storage location of the raw scan file. Not directly downloadable — use [Get 3D Model File](#get-3d-model-file) for a download link. |
+| `isTestScan` | `boolean` | `true` for test/demo scans |
 | `timestamp` | `string` | Scan capture time (ISO 8601) |
 
 ### Measurements
 
-Measurements are grouped by anatomical region. The exact set of fields depends on the scan and processing configuration.
+Measurements are returned as a nested object grouped by body region (`height`, `head`, `torso`, `back`, `arm`, `legs`, `ratios`, `physique_metrics`, `user_inputs`). Each value is a bare number (or `null`); units are **not** included in the response — use the table below.
 
-| Group | Example Fields |
+**Which fields you receive depends on your organization's configuration.** The table below lists every measurement the API can return. Your organization is configured to receive a subset of these, so a given response will contain only some groups and fields. A field may also be absent, or `null`, when it could not be computed for a particular scan. Contact your FitMatch representative to review or change the measurements enabled for your organization.
+
+Build your integration to tolerate missing groups, missing fields, and `null` values.
+
+**Units**
+
+| Unit | Applies to |
 |---|---|
-| `height` | `body_height`, `seated_height` |
-| `torso` | `chest_circumference`, `waist_circumference`, `hip_circumference`, `shoulder_width` |
-| `arm` | `upper_arm_circumference`, `forearm_circumference`, `arm_length` |
-| `legs` | `upper_thigh_circumference_left`, `upper_thigh_circumference_right`, `calf_circumference_left`, `calf_circumference_right`, `leg_length` |
-| `ratios` | `shoulder_to_hip_ratio`, `waist_to_hip_ratio` |
-| `physique_metrics` | `bmi` (Body Mass Index), `bri` (Body Roundness Index) |
+| `m` (meters) | All lengths, heights, circumferences, and breadths. Multiply by `100` for centimeters or by `39.3701` for inches. |
+| `kg` (kilograms) | Mass values in `physique_metrics` (`estimated_weight`, `lean_mass`, `total_fat`, `bone_mineral_content`). |
+| `years` | `physique_metrics.phv` |
+| `%` | `physique_metrics.total_fat_percent` |
+| unitless | Ratios and indices (`ratios.*`, `bmi`, `bri`) |
+| `lb`, `ft`, `in` | `user_inputs` values, as entered by the operator at scan time |
 
-All measurement values are numeric. Units are specified in the API response alongside the values.
+**Field reference**
+
+Fields listed as `name`, `name_left`, `name_right` are available as a combined value and as separate left/right values; your configuration determines which of these you receive. `user_inputs` is always included and contains only the values entered at scan time.
+
+| Group | Field(s) | Description | Unit |
+|---|---|---|---|
+| `height` | `body_height` | Standing body height | m |
+| `height` | `seated_height` | Seated height | m |
+| `height` | `predicted_adult_height_phv` | Predicted adult height (maturation-based) | m |
+| `height` | `predicted_adult_height_parents` | Predicted adult height (parental-height method; only when both parent heights were entered) | m |
+| `head` | `head_circumference` | Head circumference | m |
+| `head` | `neck_circumference` | Neck circumference | m |
+| `torso` | `chest_circumference` | Chest circumference | m |
+| `torso` | `underbust_circumference` | Underbust circumference | m |
+| `torso` | `waist_circumference` | Low waist circumference | m |
+| `torso` | `narrowest_waist_circumference` | Narrowest waist circumference | m |
+| `torso` | `fullest_waist_circumference` | Fullest waist circumference | m |
+| `torso` | `hip_circumference` | Hip circumference | m |
+| `torso` | `transverse_chest_breadth` | Transverse (side-to-side) chest breadth | m |
+| `torso` | `anterior_posterior_chest_breadth` | Anterior–posterior (front-to-back) chest breadth | m |
+| `torso` | `waist_breadth` | Waist breadth | m |
+| `torso` | `hip_breadth` | Hip breadth | m |
+| `back` | `back_length` | Back length | m |
+| `back` | `back_width` | Back width | m |
+| `arm` | `wingspan` | Wingspan | m |
+| `arm` | `arm_length`, `arm_length_left`, `arm_length_right` | Arm length | m |
+| `arm` | `upper_arm_circumference`, `upper_arm_circumference_left`, `upper_arm_circumference_right` | Upper arm circumference | m |
+| `arm` | `forearm_circumference`, `forearm_circumference_left`, `forearm_circumference_right` | Forearm circumference | m |
+| `arm` | `wrist_circumference`, `wrist_circumference_left`, `wrist_circumference_right` | Wrist circumference | m |
+| `arm` | `elbow_breadth`, `elbow_breadth_left`, `elbow_breadth_right` | Elbow breadth | m |
+| `legs` | `leg_length`, `leg_length_left`, `leg_length_right` | Leg length | m |
+| `legs` | `pant_length` | Pant (inseam) length | m |
+| `legs` | `upper_thigh_circumference`, `upper_thigh_circumference_left`, `upper_thigh_circumference_right` | Upper thigh circumference | m |
+| `legs` | `mid_thigh_circumference`, `mid_thigh_circumference_left`, `mid_thigh_circumference_right` | Mid thigh circumference | m |
+| `legs` | `calf_circumference`, `calf_circumference_left`, `calf_circumference_right` | Calf circumference | m |
+| `legs` | `ankle_circumference`, `ankle_circumference_left`, `ankle_circumference_right` | Ankle circumference | m |
+| `ratios` | `waist_to_hip_ratio` | Waist-to-hip ratio | unitless |
+| `ratios` | `waist_to_height_ratio` | Waist-to-height ratio | unitless |
+| `ratios` | `seated_to_standing_ratio` | Seated-to-standing height ratio | unitless |
+| `ratios` | `muscle_to_bone_ratio` | Muscle-to-bone ratio | unitless |
+| `physique_metrics` | `bmi` | Body Mass Index | unitless (kg/m²) |
+| `physique_metrics` | `bri` | Body Roundness Index | unitless |
+| `physique_metrics` | `estimated_weight` | Estimated body weight | kg |
+| `physique_metrics` | `lean_mass` | Lean mass | kg |
+| `physique_metrics` | `total_fat` | Total fat mass | kg |
+| `physique_metrics` | `total_fat_percent` | Body fat percentage | % |
+| `physique_metrics` | `bone_mineral_content` | Bone mineral content | kg |
+| `physique_metrics` | `phv` | Estimated age at Peak Height Velocity (PHV) | years |
+| `user_inputs` | `gender` | Gender entered at scan time | — |
+| `user_inputs` | `weight` | Body weight entered at scan time | lb |
+| `user_inputs` | `height_ft`, `height_in` | Body height entered at scan time (feet + inches) | ft, in |
+| `user_inputs` | `father_height_in`, `mother_height_in` | Parent heights, when entered at scan time | in |
 
 ---
 
@@ -478,14 +578,13 @@ All measurement values are numeric. Units are specified in the API response alon
 | `200` | Success |
 | `400` | Bad request — invalid or missing parameters |
 | `401` | Unauthorized — missing or expired token |
-| `403` | Forbidden — token valid but insufficient permissions |
-| `404` | Not found — resource does not exist |
-| `429` | Too many requests — rate limit exceeded |
+| `403` | Forbidden — token valid but not permitted for this organization or resource, or request rate-limited (see [Rate Limits](#rate-limits)) |
+| `404` | Not found — resource or route does not exist |
 | `500` | Internal server error |
 
 ### Error Response Format
 
-All errors follow a consistent structure:
+Errors from the data endpoints (`/orgs/...`) use this structure:
 
 ```json
 {
@@ -497,6 +596,8 @@ All errors follow a consistent structure:
 }
 ```
 
+The token endpoint returns errors as `{"message": "..."}` instead. Rate-limit responses (see [Rate Limits](#rate-limits)) are not JSON.
+
 ### Common Error Codes
 
 | Code | Status | Description |
@@ -504,44 +605,43 @@ All errors follow a consistent structure:
 | `MISSING_AUTH` | 401 | No `Authorization` header provided |
 | `INVALID_TOKEN` | 401 | Token is expired or malformed |
 | `ORG_ACCESS_DENIED` | 403 | Token does not grant access to the requested organization |
-| `ATHLETE_NOT_FOUND` | 404 | No athlete with the given ID exists in your organization |
-| `SCAN_NOT_FOUND` | 404 | No scan with the given ID exists in your organization |
-| `RATE_LIMIT_EXCEEDED` | 429 | You have exceeded your plan's request quota |
+| `ATHLETE_NOT_FOUND` | 404 | No athlete with the given ID exists |
+| `ATHLETE_ACCESS_DENIED` | 403 | The athlete exists but belongs to a different organization |
+| `SCAN_NOT_FOUND` | 404 | No scan with the given ID exists |
+| `SCAN_ACCESS_DENIED` | 403 | The scan exists but belongs to a different organization |
+| `MODEL_FILE_NOT_FOUND` | 404 | No 3D model file of the requested format exists for this scan |
+| `INVALID_PAGINATION` | 400 | `limit` or `offset` is not a valid value |
+| `MISSING_DATA_TYPE` | 400 | Export request has no `data_type` |
+| `INVALID_DATA_TYPE` | 400 | Export `data_type` is not `athletes`, `scans`, or `measurements` |
+| `INVALID_FORMAT` | 400 | Export `format` is not `json` or `csv` |
+| `INVALID_JSON` | 400 | Request body is not valid JSON |
+| `ROUTE_NOT_FOUND` | 404 | No endpoint matches the method and path |
+| `INTERNAL_ERROR` | 500 | Unexpected server error — safe to retry |
 
 ---
 
 ## Rate Limits
 
-Request quotas depend on your subscription tier:
+Requests are rate-limited per client IP address. If you exceed the limit, requests are rejected with HTTP `403` and a non-JSON body until the request rate drops; the block clears automatically within a few minutes. Responses do not include rate-limit headers.
 
-| Tier | Requests / Minute | Requests / Hour | Data Export / Day |
-|---|---|---|---|
-| Basic | 100 | 5,000 | 100 MB |
-| Premium | 500 | 25,000 | 1 GB |
-| Enterprise | 1,000 | 50,000 | 5 GB |
-
-Every response includes rate-limit headers:
-
-```
-X-RateLimit-Limit: 500
-X-RateLimit-Remaining: 495
-X-RateLimit-Reset: 1745928000
-```
-
-When you receive a `429` response, back off and retry. We recommend exponential backoff:
+To stay within limits, page through results with `limit` / `offset` rather than issuing many parallel requests, use [Export Data](#export-data) for bulk pulls, and back off when you receive a `403` that does not have a JSON `error` body:
 
 ```javascript
 async function fetchWithRetry(url, options, maxRetries = 3) {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const response = await fetch(url, options);
-    if (response.status !== 429) return response;
+    if (response.status !== 403) return response;
+    const isJson = (response.headers.get('content-type') || '').includes('application/json');
+    if (isJson) return response; // a real permission error — do not retry
 
-    const delay = Math.pow(2, attempt) * 1000; // 1 s, 2 s, 4 s
+    const delay = Math.pow(2, attempt) * 30000; // 30 s, 60 s, 120 s
     await new Promise(r => setTimeout(r, delay));
   }
   throw new Error('Rate limit: max retries exceeded');
 }
 ```
+
+If your integration needs a higher sustained request rate, contact your FitMatch representative.
 
 ---
 

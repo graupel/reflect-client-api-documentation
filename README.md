@@ -1,4 +1,4 @@
-# Reflect Client Data API Reference
+]633;E;head -n 876 README.md;03d4d042-e87b-48c3-92f2-ef49dbb3f268]633;C# Reflect Client Data API Reference
 
 Access athlete biometric data and 3D body scan measurements programmatically through our secure REST API.
 
@@ -12,12 +12,13 @@ Access athlete biometric data and 3D body scan measurements programmatically thr
   - [List Scans](#list-scans)
   - [Get Scan](#get-scan)
   - [Get Measurements](#get-measurements)
-  - [Get 3D Model File](#get-3d-model-file)
+  - [Get 3D Model Download URL](#get-3d-model-download-url)
   - [Export Data](#export-data)
 - [Data Models](#data-models)
 - [Error Handling](#error-handling)
 - [Rate Limits](#rate-limits)
 - [Code Examples](#code-examples)
+- [Versioning and Compatibility](#versioning-and-compatibility)
 - [Security Best Practices](#security-best-practices)
 - [Support](#support)
 
@@ -39,7 +40,15 @@ The Reflect Client Data API lets your organization pull athlete scan data direct
 https://prod-wl.fitmatch.io/reflect/client/v1
 ```
 
-All endpoint paths in this document are relative to this base URL.
+All endpoint paths in this document are relative to this base URL. The API is served over HTTPS only.
+
+### Your Organization ID
+
+Every data endpoint includes your organization identifier, `{org_id}`, in its path (for example `/orgs/ABC/athletes`). It is your organization's short abbreviation and is provided together with your API credentials. Your access token is tied to that one organization: a request for any other `org_id` returns `403 ORG_ACCESS_DENIED`.
+
+### Field Naming
+
+Athlete and scan objects use `camelCase` field names (`athleteId`, `scanStatus`). Measurement fields, pagination, export rows, and the 3D model URL response use `snake_case` (`body_height`, `has_more`, `scan_id`, `download_url`). Each field's name is fixed, so map them exactly as shown in this document.
 
 ### Authentication at a Glance
 
@@ -82,6 +91,8 @@ Exchange your API credentials for a Bearer token.
 ```
 
 Tokens are valid for **1 hour**. Cache and reuse them for the full lifetime — there is no need to request a new token for every call. When a token expires, request a new one with the same credentials.
+
+If the request is rejected (for example, an incorrect `client_id` or `client_secret`), the endpoint returns a non-`200` status with a JSON body of the form `{"message": "..."}`. Don't retry a rejected credential request in a loop: check your credentials, and contact support if they should be valid.
 
 ---
 
@@ -348,9 +359,9 @@ When `types` is omitted, all available measurement groups are returned and `requ
 
 ---
 
-### Get 3D Model File
+### Get 3D Model Download URL
 
-Generate a secure, time-limited download URL for a 3D model file.
+Generate a secure, time-limited download URL for a scan's 3D model file. This endpoint returns a link, not the file itself.
 
 **`GET /orgs/{org_id}/scans/{scan_id}/model/url`**
 
@@ -450,7 +461,9 @@ For JSON format, the response body is a flat array of rows. Export rows use `sna
 
 `data_type: "athletes"` — one row per athlete profile in your organization.
 
-For CSV format, the response is returned with `Content-Type: text/csv` and a `Content-Disposition` header for download.
+For CSV format, the response is returned with `Content-Type: text/csv` and a `Content-Disposition` header for download. Read the body as text, not JSON. Nested values such as `measurements` are written as JSON strings inside their CSV cell. If no rows match your filters, the CSV body is empty (no header row).
+
+**Date ranges:** to export a whole period, set `end` to the first day *after* it. For example, all of Q1 2026 is `"start": "2026-01-01", "end": "2026-04-01"`.
 
 ---
 
@@ -491,8 +504,12 @@ Timestamps on athletes and scans (`createdAt`, `lastScannedDate`, `timestamp`, a
 | `customId` | `string \| null` | Your custom identifier for this scan (e.g. internal tracking number) |
 | `measurements` | `object` | Body measurements grouped by region (see below) |
 | `processingTime` | `number \| null` | Processing duration in seconds |
-| `scanFileUrl` | `string \| null` | Storage location of the raw scan file. Not directly downloadable — use [Get 3D Model File](#get-3d-model-file) for a download link. |
+| `scanFileUrl` | `string \| null` | Storage location of the raw scan file. Not directly downloadable — use [Get 3D Model Download URL](#get-3d-model-download-url) for a download link. |
 | `isTestScan` | `boolean` | `true` for test/demo scans |
+
+### Test Data
+
+Test and demo records are returned alongside real ones: list endpoints and exports do not filter them out. On athlete and scan objects, use `isTestAthlete` and `isTestScan` to exclude them from your own reporting. `scans` and `measurements` export rows do not carry a test flag, so if you need to exclude test scans from an export, identify them with [List Scans](#list-scans) and match on `scan_id`.
 | `timestamp` | `string` | Scan capture time (ISO 8601) |
 
 ### Measurements
@@ -684,8 +701,32 @@ curl -o model.pcd "$URL"
 curl -s -X POST "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/export" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"data_type":"scans","format":"json","filters":{"date_range":{"start":"2026-01-01","end":"2026-04-29"}}}'
+  -d '{"data_type":"scans","format":"json","filters":{"date_range":{"start":"2026-01-01","end":"2026-04-01"}}}'
+
+# 8. Export the same scans as CSV and save to a file
+curl -s -X POST "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/export" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"data_type":"scans","format":"csv","filters":{"date_range":{"start":"2026-01-01","end":"2026-04-01"}}}' \
+  -o scans_q1_2026.csv
 ```
+
+### Paging Through Results
+
+List endpoints return at most `100` items per call. To fetch everything, advance `offset` by `limit` until `pagination.has_more` is `false`:
+
+```bash
+OFFSET=0
+while : ; do
+  PAGE=$(curl -s "https://prod-wl.fitmatch.io/reflect/client/v1/orgs/ABC/athletes?limit=100&offset=$OFFSET" \
+    -H "Authorization: Bearer $TOKEN")
+  echo "$PAGE" | jq -c '.athletes[]'
+  [ "$(echo "$PAGE" | jq -r '.pagination.has_more')" = "true" ] || break
+  OFFSET=$((OFFSET + 100))
+done
+```
+
+The JavaScript and Python clients below include a `listAllAthletes` / `list_all_athletes` helper that does the same thing.
 
 
 ### JavaScript / Node.js
@@ -710,11 +751,15 @@ class ReflectAPI {
         grant_type: 'client_credentials',
       }),
     });
-    if (!res.ok) throw new Error(`Auth failed: ${res.status}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(`Auth failed: ${res.status} ${body.message || ''}`.trim());
+    }
 
     const data = await res.json();
     this.token = data.access_token;
-    this.tokenExpiresAt = Date.now() + data.expires_in * 1000;
+    // Refresh 30 seconds early so a token never expires mid-request
+    this.tokenExpiresAt = Date.now() + (data.expires_in - 30) * 1000;
   }
 
   async request(path, options = {}) {
@@ -725,14 +770,35 @@ class ReflectAPI {
       ...options,
       headers: { Authorization: `Bearer ${this.token}`, ...options.headers },
     });
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    return res.json();
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    if (!res.ok) {
+      // Data endpoints return {"error": {"code", "message"}}; rate-limit responses are not JSON
+      const body = isJson ? await res.json() : null;
+      const err = new Error(body?.error?.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      err.code = body?.error?.code || (res.status === 403 ? 'RATE_LIMITED' : null);
+      throw err;
+    }
+    // CSV exports come back as text
+    return isJson ? res.json() : res.text();
   }
 
   // Athletes
   listAthletes(orgId, params = {}) {
     const qs = new URLSearchParams(params).toString();
     return this.request(`/orgs/${orgId}/athletes${qs ? `?${qs}` : ''}`);
+  }
+
+  // Fetch every athlete, one page at a time
+  async listAllAthletes(orgId, params = {}) {
+    const all = [];
+    let offset = 0;
+    while (true) {
+      const { athletes, pagination } = await this.listAthletes(orgId, { ...params, limit: 100, offset });
+      all.push(...athletes);
+      if (!pagination.has_more) return all;
+      offset += pagination.limit;
+    }
   }
 
   getAthlete(orgId, athleteId) {
@@ -788,6 +854,24 @@ console.log(scan.customId);     // "PT-00451"
 
 // Download a 3D model
 const { download_url } = await api.getModelUrl('ABC', scan.scanId, 'pcd');
+
+// Every athlete in the organization, excluding test profiles
+const everyone = (await api.listAllAthletes('ABC')).filter(a => !a.isTestAthlete);
+
+// Export Q1 2026 scans as CSV (returned as a string)
+const csv = await api.exportData('ABC', {
+  data_type: 'scans',
+  format: 'csv',
+  filters: { date_range: { start: '2026-01-01', end: '2026-04-01' } },
+});
+
+// Handle errors by code
+try {
+  await api.getScan('ABC', '00000000-0000-0000-0000-000000000000');
+} catch (err) {
+  if (err.code === 'SCAN_NOT_FOUND') console.log('No such scan');
+  else throw err;
+}
 ```
 
 ### Python
@@ -797,10 +881,19 @@ import requests
 from datetime import datetime, timedelta
 
 
+class ReflectAPIError(Exception):
+    """Raised for non-2xx responses. `code` is the API error code, e.g. SCAN_NOT_FOUND."""
+
+    def __init__(self, status: int, code: str | None, message: str):
+        super().__init__(" ".join(str(p) for p in (status, code, message) if p))
+        self.status, self.code, self.message = status, code, message
+
+
 class ReflectAPI:
     """Lightweight client for the Reflect Client Data API."""
 
     BASE = "https://prod-wl.fitmatch.io/reflect"
+    TIMEOUT = 30  # seconds
 
     def __init__(self, client_id: str, client_secret: str):
         self.client_id = client_id
@@ -820,90 +913,86 @@ class ReflectAPI:
                 "client_secret": self.client_secret,
                 "grant_type": "client_credentials",
             },
+            timeout=self.TIMEOUT,
         )
-        resp.raise_for_status()
+        if not resp.ok:
+            try:
+                message = resp.json().get("message", "")
+            except ValueError:
+                message = resp.text
+            raise ReflectAPIError(resp.status_code, None, f"authentication failed: {message}")
         data = resp.json()
         self._token = data["access_token"]
+        # Refresh 30 seconds early so a token never expires mid-request
         self._expires_at = datetime.now() + timedelta(seconds=data["expires_in"] - 30)
 
-    def _headers(self) -> dict:
+    # --- one place for every API call ---
+
+    def _request(self, method: str, path: str, **kwargs):
         self._ensure_token()
-        return {"Authorization": f"Bearer {self._token}"}
+        resp = requests.request(
+            method,
+            f"{self.BASE}/client/v1{path}",
+            headers={"Authorization": f"Bearer {self._token}"},
+            timeout=self.TIMEOUT,
+            **kwargs,
+        )
+        is_json = "application/json" in resp.headers.get("Content-Type", "")
+        if not resp.ok:
+            # Data endpoints return {"error": {"code", "message"}}; rate-limit responses are not JSON
+            error = resp.json().get("error", {}) if is_json else {}
+            code = error.get("code") or ("RATE_LIMITED" if resp.status_code == 403 else None)
+            raise ReflectAPIError(resp.status_code, code, error.get("message", resp.reason))
+        # CSV exports come back as text
+        return resp.json() if is_json else resp.text
 
     # --- athletes ---
 
     def list_athletes(self, org_id: str, **params) -> dict:
-        resp = requests.get(
-            f"{self.BASE}/client/v1/orgs/{org_id}/athletes",
-            headers=self._headers(),
-            params=params,
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return self._request("GET", f"/orgs/{org_id}/athletes", params=params)
+
+    def list_all_athletes(self, org_id: str, **params) -> list[dict]:
+        """Fetch every athlete, one page at a time."""
+        athletes, offset = [], 0
+        while True:
+            page = self.list_athletes(org_id, **params, limit=100, offset=offset)
+            athletes.extend(page["athletes"])
+            if not page["pagination"]["has_more"]:
+                return athletes
+            offset += page["pagination"]["limit"]
 
     def get_athlete(self, org_id: str, athlete_id: str) -> dict:
-        resp = requests.get(
-            f"{self.BASE}/client/v1/orgs/{org_id}/athletes/{athlete_id}",
-            headers=self._headers(),
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return self._request("GET", f"/orgs/{org_id}/athletes/{athlete_id}")
 
     # --- scans ---
 
     def list_scans(self, org_id: str, **params) -> dict:
-        resp = requests.get(
-            f"{self.BASE}/client/v1/orgs/{org_id}/scans",
-            headers=self._headers(),
-            params=params,
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return self._request("GET", f"/orgs/{org_id}/scans", params=params)
 
     def get_scan(self, org_id: str, scan_id: str) -> dict:
-        resp = requests.get(
-            f"{self.BASE}/client/v1/orgs/{org_id}/scans/{scan_id}",
-            headers=self._headers(),
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return self._request("GET", f"/orgs/{org_id}/scans/{scan_id}")
 
     # --- measurements ---
 
     def get_measurements(self, org_id: str, scan_id: str, types: str | None = None) -> dict:
         params = {"types": types} if types else {}
-        resp = requests.get(
-            f"{self.BASE}/client/v1/orgs/{org_id}/scans/{scan_id}/measurements",
-            headers=self._headers(),
-            params=params,
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return self._request("GET", f"/orgs/{org_id}/scans/{scan_id}/measurements", params=params)
 
     # --- 3D model ---
 
     def get_model_url(self, org_id: str, scan_id: str, extension: str = "pcd") -> dict:
-        resp = requests.get(
-            f"{self.BASE}/client/v1/orgs/{org_id}/scans/{scan_id}/model/url",
-            headers=self._headers(),
-            params={"extension": extension},
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return self._request("GET", f"/orgs/{org_id}/scans/{scan_id}/model/url",
+                             params={"extension": extension})
 
     # --- export ---
 
-    def export_data(self, org_id: str, data_type: str, fmt: str = "json", filters: dict | None = None) -> dict:
+    def export_data(self, org_id: str, data_type: str, fmt: str = "json",
+                    filters: dict | None = None) -> list | str:
+        """Returns a list of rows for JSON, or the CSV text for fmt="csv"."""
         body = {"data_type": data_type, "format": fmt}
         if filters:
             body["filters"] = filters
-        resp = requests.post(
-            f"{self.BASE}/client/v1/orgs/{org_id}/export",
-            headers=self._headers(),
-            json=body,
-        )
-        resp.raise_for_status()
-        return resp.json()
+        return self._request("POST", f"/orgs/{org_id}/export", json=body)
 
 
 # --- Usage ---
@@ -915,37 +1004,67 @@ data = api.list_athletes("ABC", limit=100, sort="last_name", order="asc")
 for athlete in data["athletes"]:
     print(athlete["firstName"], athlete["lastName"])
 
+# Every athlete in the organization, excluding test profiles
+everyone = [a for a in api.list_all_athletes("ABC") if not a["isTestAthlete"]]
+
 # Get a single scan — includes operatorName and customId
 scan_data = api.get_scan("ABC", "5bb5e4d3-005d-4f30-8ce2-616a4b2d1825")
 scan = scan_data["scan"]
 print(scan["operatorName"])  # "Jane Trainer"
 print(scan["customId"])       # "PT-00451"
 
-# Export all completed scans for Q1 2026
-export = api.export_data(
+# Export all completed scans for Q1 2026 (end is the day after the period)
+rows = api.export_data(
     "ABC",
     data_type="scans",
     filters={
-        "date_range": {"start": "2026-01-01", "end": "2026-03-31"},
+        "date_range": {"start": "2026-01-01", "end": "2026-04-01"},
         "status": "completed",
     },
 )
+
+# The same export as a CSV file
+csv_text = api.export_data("ABC", data_type="scans", fmt="csv",
+                           filters={"date_range": {"start": "2026-01-01", "end": "2026-04-01"}})
+with open("scans_q1_2026.csv", "w", newline="") as f:
+    f.write(csv_text)
+
+# Handle errors by code
+try:
+    api.get_scan("ABC", "00000000-0000-0000-0000-000000000000")
+except ReflectAPIError as err:
+    if err.code == "SCAN_NOT_FOUND":
+        print("No such scan")
+    else:
+        raise
 ```
+
+---
+
+## Versioning and Compatibility
+
+The API version is part of the base URL (`/v1`). Within `v1`:
+
+- Existing endpoints, parameters, and fields keep their names and meaning.
+- New endpoints, optional parameters, and response fields may be added at any time. Ignore fields you don't recognize rather than failing on them.
+- Measurement groups and fields can vary by organization (see [Measurements](#measurements)), so treat any single field as optional.
+
+A breaking change would ship as a new version (`/v2`), with advance notice through your FitMatch representative.
 
 ---
 
 ## Security Best Practices
 
 **Credentials**
-- Store `client_id` and `client_secret` in environment variables or a secrets manager. Never commit them to source control or embed them in client-side code.
-- Use separate credentials for development and production environments.
+- Store `client_id` and `client_secret` in environment variables or a secrets manager. Never commit them to source control or embed them in client-side code (browser or mobile apps). Call the API from your servers only.
+- If you believe your credentials have been exposed, contact your FitMatch representative to have them replaced.
 
 **Tokens**
 - Cache tokens for their full 1-hour lifetime to avoid unnecessary auth calls.
-- Implement automatic refresh: when you receive a `401`, request a new token and retry.
+- Implement automatic refresh: when you receive a `401 INVALID_TOKEN`, request a new token and retry the call once.
 
 **Network**
-- Always use HTTPS. The API rejects plain HTTP.
+- Always use HTTPS.
 - Set reasonable request timeouts (we recommend 30 seconds).
 - Never log tokens or credentials.
 
@@ -958,3 +1077,9 @@ export = api.export_data(
 ## Support
 
 If you have questions or run into issues, reach out to your FitMatch account representative.
+
+To help us resolve a problem quickly, include:
+
+- the endpoint and method (for example `GET /orgs/ABC/scans`) and any query parameters or request body, **without** your token or credentials
+- the HTTP status and the `error.code` and `error.timestamp` from the response
+- the approximate time of the request, with time zone

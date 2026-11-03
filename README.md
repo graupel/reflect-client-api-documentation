@@ -1,4 +1,4 @@
-]633;E;head -n 876 README.md;03d4d042-e87b-48c3-92f2-ef49dbb3f268]633;C# Reflect Client Data API Reference
+# Reflect Client Data API Reference
 
 Access athlete biometric data and 3D body scan measurements programmatically through our secure REST API.
 
@@ -506,11 +506,11 @@ Timestamps on athletes and scans (`createdAt`, `lastScannedDate`, `timestamp`, a
 | `processingTime` | `number \| null` | Processing duration in seconds |
 | `scanFileUrl` | `string \| null` | Storage location of the raw scan file. Not directly downloadable — use [Get 3D Model Download URL](#get-3d-model-download-url) for a download link. |
 | `isTestScan` | `boolean` | `true` for test/demo scans |
+| `timestamp` | `string` | Scan capture time (ISO 8601) |
 
 ### Test Data
 
 Test and demo records are returned alongside real ones: list endpoints and exports do not filter them out. On athlete and scan objects, use `isTestAthlete` and `isTestScan` to exclude them from your own reporting. `scans` and `measurements` export rows do not carry a test flag, so if you need to exclude test scans from an export, identify them with [List Scans](#list-scans) and match on `scan_id`.
-| `timestamp` | `string` | Scan capture time (ISO 8601) |
 
 ### Measurements
 
